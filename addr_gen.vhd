@@ -15,7 +15,7 @@ END addr_gen;
 
 ARCHITECTURE behavioral OF addr_gen IS
     SIGNAL addrA_start: unsigned(7 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL addrB_start: unsigned(3 DOWNTO 0) := (OTHERS => '0'); -- 0 - 15
+    SIGNAL addrB_start: unsigned(3 DOWNTO 0) := (OTHERS => '0');
     
     SIGNAL a_offset: unsigned(3 DOWNTO 0) := (OTHERS => '0');
     SIGNAL b_offset: unsigned(7 DOWNTO 0) := (OTHERS => '0');
@@ -26,7 +26,7 @@ BEGIN
     PROCESS(rst, clk)
         VARIABLE a_offset_var: unsigned(4 DOWNTO 0) := (OTHERS => '0');
         VARIABLE addrA_start_var: unsigned(8 DOWNTO 0) := (OTHERS => '0');
-        VARIABLE addrB_start_var: unsigned(4 DOWNTO 0) := (OTHERS => '0'); -- +1 bit
+        VARIABLE addrB_start_var: unsigned(4 DOWNTO 0) := (OTHERS => '0');
     BEGIN
         IF rst = RSTDEF THEN
             addrA_start <= (OTHERS => '0');
@@ -48,26 +48,18 @@ BEGIN
                 -- finished one column of matrix B
                 IF a_offset_var(4) = '1' THEN
                     addrB_start_var := ('0' & addrB_start) + 1;
-                    addrB_start <= addrB_start_var(3 DOWNTO 0); --!
-                    b_offset <= (OTHERS => '0');
-                END IF;
-                
-				-- hier problem
-				
-                -- finished one row of matrix A
-                IF addrB_start_var(4) = '1' AND a_offset_var(4) = '1' THEN --!
-                    addrA_start_var := ('0' & addrA_start) + 16;
-                    addrA_start <= addrA_start_var(7 DOWNTO 0);
-                    b_offset <= (OTHERS => '0');
-                END IF;
-                
-                -- finished all matrices
-                IF addrA_start_var(8) = '1' AND a_offset_var(4) = '1' THEN -- !!!!
-                    done <= '1';
-                    addrA_start <= (OTHERS => '0');
-                    addrB_start <= (OTHERS => '0');
-                    a_offset <= (OTHERS => '0');
-                    b_offset <= (OTHERS => '0');
+                    addrB_start <= addrB_start_var(3 DOWNTO 0);
+                    
+                    -- finished one row of matrix A
+                    IF addrB_start_var(4) = '1' THEN
+                        addrA_start_var := ('0' & addrA_start) + 16;
+                        addrA_start <= addrA_start_var(7 DOWNTO 0);
+                        
+                        -- finished all matrices
+                        IF addrA_start_var(8) = '1' THEN
+                            done <= '1';
+                        END IF;
+                    END IF;
                 END IF;
             END IF;
         END IF;
