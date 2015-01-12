@@ -6,12 +6,13 @@ ENTITY accumulator IS
     GENERIC(N: natural := 8;
             N_in: natural := 8;
             RSTDEF: std_logic := '0');
-    PORT(rst:   IN std_logic;                           -- reset, RSTDEF active
-         clk:   IN std_logic;                           -- clock, rising edge
-         swrst: IN std_logic;                           -- software reset, RSTDEF active
-         en:    IN std_logic;                           -- enable, high active
-         op:    IN std_logic_vector(N_in-1 DOWNTO 0);      			-- operand
-         sum:   OUT std_logic_vector(N-1 DOWNTO 0));     			-- result
+    PORT(rst:     IN std_logic;                           -- reset, RSTDEF active
+         clk:     IN std_logic;                           -- clock, rising edge
+         swrst:   IN std_logic;                           -- software reset, RSTDEF active
+         en:      IN std_logic;                           -- enable, high active
+         restart: IN std_logic;                           -- restart
+         op:      IN std_logic_vector(N_in-1 DOWNTO 0);   -- operand
+         sum:     OUT std_logic_vector(N-1 DOWNTO 0));    -- result
 END accumulator;
 
 ARCHITECTURE behavioral OF accumulator IS
@@ -29,9 +30,12 @@ BEGIN
                 tmp_sum <= (OTHERS => '0');
             ELSIF en = '1' THEN
                 -- only apply new value when enabled
-                tmp_sum <= tmp_sum + signed(op);
+                IF restart = '1' THEN
+                    tmp_sum <= signed(op);
+                ELSE
+                    tmp_sum <= tmp_sum + signed(op);
+                END IF;
             END IF;
         END IF;
     END PROCESS;
-
 END behavioral;

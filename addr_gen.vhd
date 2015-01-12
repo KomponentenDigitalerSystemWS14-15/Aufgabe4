@@ -4,13 +4,14 @@ USE ieee.numeric_std.ALL;
 
 ENTITY addr_gen IS
    GENERIC(RSTDEF: std_logic := '0');
-   PORT(rst:   IN  std_logic;                      -- reset,          RSTDEF active
-        clk:   IN  std_logic;                      -- clock,          rising edge
-        swrst: IN  std_logic;                      -- software reset, RSTDEF active
-        en:    IN std_logic;                       -- enable,         high active
-        addrA: OUT std_logic_vector(7 DOWNTO 0);
-        addrB: OUT std_logic_vector(7 DOWNTO 0);
-        done:  OUT std_logic);                     -- done if all addresses have been generated
+   PORT(rst:    IN  std_logic;                       -- reset,          RSTDEF active
+        clk:    IN  std_logic;                       -- clock,          rising edge
+        swrst:  IN  std_logic;                       -- software reset, RSTDEF active
+        en:     IN  std_logic;                       -- enable,         high active
+        addrA:  OUT std_logic_vector(7 DOWNTO 0);
+        addrB:  OUT std_logic_vector(7 DOWNTO 0);
+        doneSp: OUT std_logic;                       -- high active, when scalar product done
+        done:   OUT std_logic);                      -- high active, if all addresses have been generated
 END addr_gen;
 
 ARCHITECTURE behavioral OF addr_gen IS
@@ -29,18 +30,23 @@ BEGIN
         VARIABLE addrB_start_var: unsigned(4 DOWNTO 0) := (OTHERS => '0');
     BEGIN
         IF rst = RSTDEF THEN
+            done <= '0';
+            doneSp <= '0';
             addrA_start <= (OTHERS => '0');
             addrB_start <= (OTHERS => '0');
             a_offset <= (OTHERS => '0');
             b_offset <= (OTHERS => '0');
         ELSIF rising_edge(clk) THEN
             IF swrst = RSTDEF THEN
+                done <= '0';
+                doneSp <= '0';
                 addrA_start <= (OTHERS => '0');
                 addrB_start <= (OTHERS => '0');
                 a_offset <= (OTHERS => '0');
                 b_offset <= (OTHERS => '0');
             ELSIF en = '1' THEN
                 done <= '0';
+                doneSp <= '0';
                 a_offset_var := ('0' & a_offset) + 1;
                 a_offset <= a_offset_var(3 DOWNTO 0);
                 b_offset <= b_offset + 16;
@@ -49,6 +55,7 @@ BEGIN
                 IF a_offset_var(4) = '1' THEN
                     addrB_start_var := ('0' & addrB_start) + 1;
                     addrB_start <= addrB_start_var(3 DOWNTO 0);
+                    doneSp <= '1';
                     
                     -- finished one row of matrix A
                     IF addrB_start_var(4) = '1' THEN
