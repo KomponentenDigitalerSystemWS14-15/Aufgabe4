@@ -8,40 +8,40 @@ ENTITY addr_gen IS
         clk:    IN  std_logic;                       -- clock,          rising edge
         swrst:  IN  std_logic;                       -- software reset, RSTDEF active
         en:     IN  std_logic;                       -- enable,         high active
-        addrA:  OUT std_logic_vector(7 DOWNTO 0);
-        addrB:  OUT std_logic_vector(7 DOWNTO 0);
+        addra:  OUT std_logic_vector(7 DOWNTO 0);
+        addrb:  OUT std_logic_vector(7 DOWNTO 0);
         doneSp: OUT std_logic;                       -- high active, when scalar product done
         done:   OUT std_logic);                      -- high active, if all addresses have been generated
 END addr_gen;
 
 ARCHITECTURE behavioral OF addr_gen IS
-    SIGNAL addrA_start: unsigned(7 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL addrB_start: unsigned(3 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL addra_start: unsigned(7 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL addrb_start: unsigned(3 DOWNTO 0) := (OTHERS => '0');
     
     SIGNAL a_offset: unsigned(3 DOWNTO 0) := (OTHERS => '0');
     SIGNAL b_offset: unsigned(7 DOWNTO 0) := (OTHERS => '0');
 BEGIN
-    addrA <= std_logic_vector(addrA_start + a_offset);
-    addrB <= std_logic_vector(addrB_start + b_offset);
+    addra <= std_logic_vector(addra_start + a_offset);
+    addrb <= std_logic_vector(addrb_start + b_offset);
 
     PROCESS(rst, clk)
         VARIABLE a_offset_var: unsigned(4 DOWNTO 0) := (OTHERS => '0');
-        VARIABLE addrA_start_var: unsigned(8 DOWNTO 0) := (OTHERS => '0');
-        VARIABLE addrB_start_var: unsigned(4 DOWNTO 0) := (OTHERS => '0');
+        VARIABLE addra_start_var: unsigned(8 DOWNTO 0) := (OTHERS => '0');
+        VARIABLE addrb_start_var: unsigned(4 DOWNTO 0) := (OTHERS => '0');
     BEGIN
         IF rst = RSTDEF THEN
             done <= '0';
             doneSp <= '0';
-            addrA_start <= (OTHERS => '0');
-            addrB_start <= (OTHERS => '0');
+            addra_start <= (OTHERS => '0');
+            addrb_start <= (OTHERS => '0');
             a_offset <= (OTHERS => '0');
             b_offset <= (OTHERS => '0');
         ELSIF rising_edge(clk) THEN
             IF swrst = RSTDEF THEN
                 done <= '0';
                 doneSp <= '0';
-                addrA_start <= (OTHERS => '0');
-                addrB_start <= (OTHERS => '0');
+                addra_start <= (OTHERS => '0');
+                addrb_start <= (OTHERS => '0');
                 a_offset <= (OTHERS => '0');
                 b_offset <= (OTHERS => '0');
             ELSIF en = '1' THEN
@@ -53,17 +53,17 @@ BEGIN
                 
                 -- finished one column of matrix B
                 IF a_offset_var(4) = '1' THEN
-                    addrB_start_var := ('0' & addrB_start) + 1;
-                    addrB_start <= addrB_start_var(3 DOWNTO 0);
+                    addrb_start_var := ('0' & addrb_start) + 1;
+                    addrb_start <= addrb_start_var(3 DOWNTO 0);
                     doneSp <= '1';
                     
                     -- finished one row of matrix A
-                    IF addrB_start_var(4) = '1' THEN
-                        addrA_start_var := ('0' & addrA_start) + 16;
-                        addrA_start <= addrA_start_var(7 DOWNTO 0);
+                    IF addrb_start_var(4) = '1' THEN
+                        addra_start_var := ('0' & addra_start) + 16;
+                        addra_start <= addra_start_var(7 DOWNTO 0);
                         
                         -- finished all matrices
-                        IF addrA_start_var(8) = '1' THEN
+                        IF addra_start_var(8) = '1' THEN
                             done <= '1';
                         END IF;
                     END IF;
