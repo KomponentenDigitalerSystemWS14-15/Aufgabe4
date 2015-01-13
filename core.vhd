@@ -86,15 +86,25 @@ ARCHITECTURE behavioral OF core IS
     
     CONSTANT ACC_LEN: natural := 44;
     CONSTANT ACC_IN_LEN: natural := 36;
-
+    
     SIGNAL done_addr_gen: std_logic := '0';
+    SIGNAL done_rom: std_logic := '0';
+    SIGNAL done_mul: std_logic := '0';
+    SIGNAL done_acc: std_logic := '0';
+    SIGNAL done_ram: std_logic := '0';
+    
     SIGNAL doneSp_addr_gen: std_logic := '0';
     SIGNAL restart1: std_logic := '0';
     SIGNAL restart2: std_logic := '0';
     
+    SIGNAL swrst_res: std_logic := NOT RSTDEF;
+    SIGNAL swrst_done: std_logic := NOT RSTDEF;
+    
     SIGNAL en_addr_gen: std_logic := '1';
     SIGNAL en_ff: std_logic := '1';
     SIGNAL en_rom: std_logic := '1';
+    SIGNAL en_acc: std_logic := '1';
+    SIGNAL wea_ram: std_logic := '0';
     
     SIGNAL addra_tmp: std_logic_vector(7 DOWNTO 0) := (OTHERS => '0');
     SIGNAL addrb_tmp: std_logic_vector(7 DOWNTO 0) := (OTHERS => '0');
@@ -106,23 +116,32 @@ ARCHITECTURE behavioral OF core IS
     SIGNAL prod: std_logic_vector(ACC_IN_LEN-1 DOWNTO 0) := (OTHERS => '0');
     SIGNAL sum: std_logic_vector(ACC_LEN-1 DOWNTO 0) := (OTHERS => '0');
 BEGIN
-
+    
+    -- reset all components when accumulator is done,
+    -- so they are ready for the next start signal
+    -- after ram is written
+    swrst_done <= RSTDEF WHEN done_acc = '1' ELSE NOT RSTDEF;
+    swrst_res <= swrst WHEN swrst = RSTDEF ELSE swrst_done;
+    done <= done_ram;
+    
+    -- disable writing when ram is done
+    wea_ram <= NOT done_ram;
+    
     addr_gen1: addr_gen
     GENERIC MAP(RSTDEF => RSTDEF)
     PORT MAP(
         rst => rst,
         clk => clk,
-        swrst => swrst,
+        swrst => swrst_res,
         en => en_addr_gen,
         addra => addra_tmp,
         addrb => addrb_tmp,
         doneSp => doneSp_addr_gen,
         done => done_addr_gen);
     
-    en_addr_gen <= '1' WHEN start = '1' ELSE NOT done_addr_gen;
     addra <= "00" & addra_tmp;
     addrb <= "01" & addrb_tmp;
-        
+    
     rb1: rom_block
     PORT MAP(addra => addra,
              addrb => addrb,
@@ -136,7 +155,7 @@ BEGIN
     mul1: multiplier_16x16
     PORT MAP(clk => clk,
              clken => '1',
-             swrst => swrst,
+             swrst => swrst_res,
              op1 => vala,
              op2 => valb,
              prod => prod);
@@ -147,7 +166,7 @@ BEGIN
                 RSTDEF => RSTDEF)
     PORT MAP(rst => rst,
              clk => clk,
-             swrst => swrst,
+             swrst => swrst_res,
              en => en_acc,
              restart => restart2,
              op => prod,
@@ -156,16 +175,16 @@ BEGIN
     rb2: ram_block
     PORT MAP(addra => ,
           addrb => ,
-          clka => ,
-          clkb => ,
-          dina => ,
+          clka => clk,
+          clkb => clk,
+          dina => sum,
           douta => ,
           doutb => ,
-          ena => ,
-          enb => ,
-          wea => ,);
+          ena => '1',
+          enb => '1',
+          wea => wea_ram);
           
-    flipflop1 : flipflop
+    restartff1 : flipflop
     GENERIC MAP(RSTDEF => RSTDEF)
     PORT MAP(rst => rst,
             clk => clk,
@@ -174,7 +193,7 @@ BEGIN
             d => doneSp_addr_gen,
             q => restart1);
             
-    flipflop2 : flipflop
+    restartff2 : flipflop
     GENERIC MAP(RSTDEF => RSTDEF)
     PORT MAP(rst => rst,
             clk => clk,
@@ -182,5 +201,42 @@ BEGIN
             en => en_ff,
             d => restart1,
             q => restart2);
+            
+            
+    doneff1 : flipflop
+    GENERIC MAP(RSTDEF => RSTDEF)
+    PORT MAP(rst => rst,
+            clk => clk,
+            swrst => swrst,
+            en => en_ff,
+            d => done_addr_gen,
+            q => done_rom);
+            
+    doneff2 : flipflop
+    GENERIC MAP(RSTDEF => RSTDEF)
+    PORT MAP(rst => rst,
+            clk => clk,
+            swrst => swrst,
+            en => en_ff,
+            d => done_rom,
+            q => done_mul);
+            
+    doneff3 : flipflop
+    GENERIC MAP(RSTDEF => RSTDEF)
+    PORT MAP(rst => rst,
+            clk => clk,
+            swrst => swrst,
+            en => en_ff,
+            d => done_mul,
+            q => done_acc);
+            
+    doneff3 : flipflop
+    GENERIC MAP(RSTDEF => RSTDEF)
+    PORT MAP(rst => rst,
+            clk => clk,
+            swrst => swrst,
+            en => en_ff,
+            d => done_acc,
+            q => done_ram);
              
 END behavioral;
