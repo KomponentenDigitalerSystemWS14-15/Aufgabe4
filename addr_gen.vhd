@@ -8,64 +8,50 @@ ENTITY addr_gen IS
         clk:    IN  std_logic;                       -- clock,          rising edge
         swrst:  IN  std_logic;                       -- software reset, RSTDEF active
         en:     IN  std_logic;                       -- enable,         high active
-        addra:  OUT std_logic_vector(7 DOWNTO 0);
-        addrb:  OUT std_logic_vector(7 DOWNTO 0);
-        newSp: OUT std_logic;                       -- high active, when scalar product done
-        done:   OUT std_logic);                      -- high active, if all addresses have been generated
+        addra:  OUT std_logic_vector(9 DOWNTO 0);
+        addrb:  OUT std_logic_vector(9 DOWNTO 0);
 END addr_gen;
 
 ARCHITECTURE behavioral OF addr_gen IS
-    SIGNAL addra_start: unsigned(7 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL addrb_start: unsigned(3 DOWNTO 0) := (OTHERS => '0');
-    
-    SIGNAL a_offset: unsigned(3 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL b_offset: unsigned(7 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL rowa: std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL cola: std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL rowb: std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL colb: std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
 BEGIN
-    addra <= std_logic_vector(addra_start + a_offset);
-    addrb <= std_logic_vector(addrb_start + b_offset);
+    addra <= "00" & rowa & cola;
+    addrb <= "01" & rowb & colb;
 
     PROCESS(rst, clk)
-        VARIABLE a_offset_var: unsigned(4 DOWNTO 0) := (OTHERS => '0');
-        VARIABLE addra_start_var: unsigned(8 DOWNTO 0) := (OTHERS => '0');
-        VARIABLE addrb_start_var: unsigned(4 DOWNTO 0) := (OTHERS => '0');
+        VARIABLE rowb_var: std_logic_vector(4 DOWNTO 0) := (OTHERS => '0');
+        VARIABLE colb_var: std_logic_vector(4 DOWNTO 0) := (OTHERS => '0');
     BEGIN
         IF rst = RSTDEF THEN
-            done <= '0';
-            newSp <= '0';
-            addra_start <= (OTHERS => '0');
-            addrb_start <= (OTHERS => '0');
-            a_offset <= (OTHERS => '0');
-            b_offset <= (OTHERS => '0');
+            rowa <= (OTHERS => '0');
+            cola <= (OTHERS => '0');
+            rowb <= (OTHERS => '0');
+            colb <= (OTHERS => '0');
+            rowb_var := (OTHERS => '0');
+            colb_var := (OTHERS => '0');
         ELSIF rising_edge(clk) THEN
             IF swrst = RSTDEF THEN
-                done <= '0';
-                newSp <= '0';
-                addra_start <= (OTHERS => '0');
-                addrb_start <= (OTHERS => '0');
-                a_offset <= (OTHERS => '0');
-                b_offset <= (OTHERS => '0');
+                rowa <= (OTHERS => '0');
+                cola <= (OTHERS => '0');
+                rowb <= (OTHERS => '0');
+                colb <= (OTHERS => '0');
+                rowb_var := (OTHERS => '0');
+                colb_var := (OTHERS => '0');
             ELSIF en = '1' THEN
-                done <= '0';
-                newSp <= '0';
-                a_offset_var := ('0' & a_offset) + 1;
-                a_offset <= a_offset_var(3 DOWNTO 0);
-                b_offset <= b_offset + 16;
                 
-                -- finished one column of matrix B
-                IF a_offset_var(4) = '1' THEN
-                    addrb_start_var := ('0' & addrb_start) + 1;
-                    addrb_start <= addrb_start_var(3 DOWNTO 0);
-                    newSp <= '1';
+                rowb_var := ('0' & rowb) + 1;
+                rowb <= rowb_var(3 DOWNTO 0);
+                cola <= cola + 1;
+                
+                IF rowb_var(4) = '1' THEN
+                    colb_var := ('0' & colb) + 1;
+                    colb <= colb_var(3 DOWNTO 0);
                     
-                    -- finished one row of matrix A
-                    IF addrb_start_var(4) = '1' THEN
-                        addra_start_var := ('0' & addra_start) + 16;
-                        addra_start <= addra_start_var(7 DOWNTO 0);
-                        
-                        -- finished all matrices
-                        IF addra_start_var(8) = '1' THEN
-                            done <= '1';
-                        END IF;
+                    IF colb_var(4) = '1' THEN
+                        rowa <= rowa + 1;
                     END IF;
                 END IF;
             END IF;

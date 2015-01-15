@@ -1,6 +1,6 @@
-
 LIBRARY ieee;
 USE ieee.std_logic_1164.ALL;
+USE ieee.numeric_std.ALL;
 
 ENTITY core IS
    GENERIC(RSTDEF: std_logic := '0');
@@ -16,18 +16,17 @@ ENTITY core IS
 END core;
 
 ARCHITECTURE behavioral OF core IS
+
     COMPONENT addr_gen IS
     GENERIC(RSTDEF: std_logic := '0');
     PORT(rst:    IN  std_logic;                       -- reset,          RSTDEF active
          clk:    IN  std_logic;                       -- clock,          rising edge
          swrst:  IN  std_logic;                       -- software reset, RSTDEF active
          en:     IN  std_logic;                       -- enable,         high active
-         addra:  OUT std_logic_vector(7 DOWNTO 0);
-         addrb:  OUT std_logic_vector(7 DOWNTO 0);
-         newSp: OUT std_logic;                       -- high active, when scalar product done
-         done:   OUT std_logic);                      -- high active, if all addresses have been generated
+         addra:  OUT std_logic_vector(9 DOWNTO 0);
+         addrb:  OUT std_logic_vector(9 DOWNTO 0));
     END COMPONENT;
-    
+
     COMPONENT rom_block IS
     PORT (addra: IN std_logic_VECTOR(9 DOWNTO 0);
           addrb: IN std_logic_VECTOR(9 DOWNTO 0);
@@ -56,7 +55,6 @@ ARCHITECTURE behavioral OF core IS
          clk:     IN std_logic;                           -- clock, rising edge
          swrst:   IN std_logic;                           -- software reset, RSTDEF active
          en:      IN std_logic;                           -- enable, high active
-         restart: IN std_logic;                           -- restart
          op:      IN std_logic_vector(N_in-1 DOWNTO 0);   -- operand
          sum:     OUT std_logic_vector(N-1 DOWNTO 0));    -- result
     END COMPONENT;
@@ -74,76 +72,89 @@ ARCHITECTURE behavioral OF core IS
           wea:   IN  std_logic);
     END COMPONENT;
     
-    COMPONENT flipflop IS
-    GENERIC(RSTDEF: std_logic);
-    PORT(rst: IN std_logic;
-         clk: IN std_logic;
-         swrst: IN std_logic;
-         en: IN std_logic;
-         d: IN std_logic;
-         q: OUT std_logic);
-    END COMPONENT;
+    TYPE TState IS (S0, S1, S2, S3);
     
-    CONSTANT ACC_LEN: natural := 44;
-    CONSTANT ACC_IN_LEN: natural := 36;
-    
-    SIGNAL done_addr_gen: std_logic := '0';
-    SIGNAL done_rom: std_logic := '0';
-    SIGNAL done_mul: std_logic := '0';
-    SIGNAL done_acc: std_logic := '0';
-    SIGNAL done_ram: std_logic := '0';
-    
-    SIGNAL newSp_addr_gen: std_logic := '0';
-    SIGNAL newSp_rom: std_logic := '0';
-    SIGNAL newSp_mul: std_logic := '0';
-    
-    SIGNAL swrst_res: std_logic := NOT RSTDEF;
-    SIGNAL swrst_done: std_logic := NOT RSTDEF;
-    
-    SIGNAL en_addr_gen: std_logic := '1';
-    SIGNAL en_ff: std_logic := '1';
-    SIGNAL en_rom: std_logic := '1';
-    SIGNAL en_acc: std_logic := '1';
-    SIGNAL wea_ram: std_logic := '0';
-    
-    SIGNAL addra_tmp: std_logic_vector(7 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL addrb_tmp: std_logic_vector(7 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL addrres_tmp: std_logic_vector(7 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL addra: std_logic_vector(9 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL addrb: std_logic_vector(9 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL addrres: std_logic_vector(9 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL addrout: std_logic_vector(9 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL addra: std_logic_vector(9 DOWNTO 0);
+    SIGNAL addrb: std_logic_vector(9 DOWNTO 0);
+    SIGNAL addrc: std_logic_vector(9 DOWNTO 0);
+    SIGNAL en_store: std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL next_store: std_logic_vector(4 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL state: TState := S0;
     
     SIGNAL vala: std_logic_vector(15 DOWNTO 0) := (OTHERS => '0');
     SIGNAL valb: std_logic_vector(15 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL prod: std_logic_vector(ACC_IN_LEN-1 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL sum: std_logic_vector(ACC_LEN-1 DOWNTO 0) := (OTHERS => '0');
+    
+    SIGNAL swrst_done: std_logic := NOT RSTDEF;
+    SIGNAL swrst_res: std_logic;
+    
+    SIGNAL wea_ram: std_logic := '0';
 BEGIN
     
-    -- reset all components when accumulator is done,
-    -- so they are ready for the next start signal
-    -- after ram is written
-    swrst_done <= RSTDEF WHEN done_acc = '1' ELSE NOT RSTDEF;
     swrst_res <= swrst WHEN swrst = RSTDEF ELSE swrst_done;
-    rdy <= done_ram;
     
-    -- disable writing when ram is done
-    wea_ram <= newSp_mul;
-    
-    addr_gen1: addr_gen
-    GENERIC MAP(RSTDEF => RSTDEF)
-    PORT MAP(
-        rst => rst,
-        clk => clk,
-        swrst => swrst_res,
-        en => en_addr_gen,
-        addra => addra_tmp,
-        addrb => addrb_tmp,
-        newSp => newSp_addr_gen,
-        done => done_addr_gen);
-    
-    addra <= "00" & addra_tmp;
-    addrb <= "01" & addrb_tmp;
+    PROCESS(rst, clk)
+    BEGIN
+        IF rst = RSTDEF THEN
+        
+        ELSIF rising_edge(clk) THEN
+            IF swrst = RSTDEF THEN
+            
+            ELSE
+                IF state = S0 AND strt = '1' THEN
+                    state <= S1;
+                    en_store(0) <= '1';
+                    wea_ram <= '0';        
+                ELSIF state = S1 THEN
+                    -- shift enable signals
+                    en_store <= en_store(en_store'high-1 DOWNTO 0) & '1';
+                    IF en_store(2) = '1' THEN
+                        state <= S2;
+                    END IF;
+                ELSIF state = S2 THEN
+                    IF addra(3 DOWNTO 0) = "1111" THEN
+                        next_store(0) <= '1';
+                    END IF;
+                    
+                    -- shift next signals
+                    IF next_store(0) = '1' THEN
+                        next_store <= next_store(next_store'high-1 DOWNTO 0) & '1';
+                    END IF;
+                    
+                    IF next_store(4) = '1' THEN
+                        next_store <= (OTHERS => '0');
+                        addrc <= addrc + 1;
+                    END IF;
+                    
+                    -- finished all 
+                    IF addra = "0011111111" THEN
+                        state <= S3;
+                        en_store(0) <= '1';
+                    END IF;
+                ELSIF state = S3 THEN
+                    -- shift enable signals
+                    en_store <= en_store(en_store'high-1 DOWNTO 0) & '0';
+                    IF en_stor(2) = '0' THEN
+                        swrst_done <= RSTDEF;
+                    END IF;
+                    
+                    IF swrst_done = RSTDEF THEN
+                        state = S0;
+                        rdy = '1';
+                        swrst_done = NOT RSTDEF;
+                    END IF;
+                END IF;
+            END IF;
+        END IF;
+    END PROCESS;
+
+    addr1: addr_gen
+    GENERIC MAP(RSTDEF => RSTDEF);
+    PORT(rst => rst,
+         clk => clk,
+         swrst => swrst_res,
+         en => en_store(0),
+         addra => addra,
+         addrb => addrb);
     
     rb1: rom_block
     PORT MAP(addra => addra,
@@ -152,12 +163,12 @@ BEGIN
              clkb => clk,
              douta => vala,
              doutb => valb,
-             ena => en_rom,
-             enb => en_rom);
+             ena => en_store(1),
+             enb => en_store(1));
              
     mul1: multiplier_16x16
     PORT MAP(clk => clk,
-             clken => '1',
+             clken => en_store(2),
              swrst => swrst_res,
              op1 => vala,
              op2 => valb,
@@ -170,99 +181,20 @@ BEGIN
     PORT MAP(rst => rst,
              clk => clk,
              swrst => swrst_res,
-             en => en_acc,
-             restart => newSp_mul,
+             en => en_store(3),
              op => prod,
              sum => sum);
-             
-    PROCESS(clk, rst)
-    BEGIN
-        IF rst = RSTDEF THEN
-            addrres_tmp := (OTHERS => '0');
-        ELSIF rising_edge(clk) THEN
-            IF swrst_res = RSTDEF THEN
-                -- because of overflow, maybe unnecessary
-                addrres_tmp := (OTHERS => '0');
-            ELSE
-                IF newSp_mul = '1' THEN
-                    addrres_tmp := addrres_tmp + 1;
-                END IF;
-                
-                IF start = '1' THEN
-                    running <= '1';
-                END IF;
-            END IF;
-        END IF;
-    END PROCESS;
-    
-    addrres <= "00" & addrres_tmp;
-    addrout <= "00" & sw;
     
     rb2: ram_block
-    PORT MAP(addra => addrres,
-          addrb => addrout,
-          clka => clk,
-          clkb => clk,
-          dina => sum,
-          douta => OPEN,
-          doutb => dout,
-          ena => '1',
-          enb => '1',
-          wea => wea_ram);
-          
-    restartff1 : flipflop
-    GENERIC MAP(RSTDEF => RSTDEF)
-    PORT MAP(rst => rst,
-            clk => clk,
-            swrst => swrst,
-            en => en_ff,
-            d => newSp_addr_gen,
-            q => newSp_rom);
-            
-    restartff2 : flipflop
-    GENERIC MAP(RSTDEF => RSTDEF)
-    PORT MAP(rst => rst,
-            clk => clk,
-            swrst => swrst,
-            en => en_ff,
-            d => newSp_rom,
-            q => newSp_mul);
-            
-            
-    doneff1 : flipflop
-    GENERIC MAP(RSTDEF => RSTDEF)
-    PORT MAP(rst => rst,
-            clk => clk,
-            swrst => swrst,
-            en => en_ff,
-            d => done_addr_gen,
-            q => done_rom);
-            
-    doneff2 : flipflop
-    GENERIC MAP(RSTDEF => RSTDEF)
-    PORT MAP(rst => rst,
-            clk => clk,
-            swrst => swrst,
-            en => en_ff,
-            d => done_rom,
-            q => done_mul);
-            
-    doneff3 : flipflop
-    GENERIC MAP(RSTDEF => RSTDEF)
-    PORT MAP(rst => rst,
-            clk => clk,
-            swrst => swrst,
-            en => en_ff,
-            d => done_mul,
-            q => done_acc);
-            
-    doneff4 : flipflop
-    GENERIC MAP(RSTDEF => RSTDEF)
-    PORT MAP(rst => rst,
-            clk => clk,
-            swrst => swrst,
-            en => en_ff,
-            d => done_acc,
-            q => done_ram);
+    PORT MAP(addra => addrc,
+             addrb => "0000000000",
+             clka => clk,
+             clkb => clk,
+             dina => sum,
+             douta => OPEN,
+             doutb => dout,
+             ena => '1',
+             enb => '1',
+             wea => wea_ram);
              
 END behavioral;
