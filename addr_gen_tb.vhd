@@ -18,12 +18,12 @@ ARCHITECTURE test OF addr_gen_test IS
          en:     IN  std_logic;                       -- enable,         high active
          addra:  OUT std_logic_vector(7 DOWNTO 0);
          addrb:  OUT std_logic_vector(7 DOWNTO 0);
-         doneSp: OUT std_logic;                       -- high active, when scalar product done
+         newSp: OUT std_logic;                       -- high active, when scalar product done
          done:   OUT std_logic);                      -- high active, if all addresses have been generated                    -- done if all addresses have been generated
     END COMPONENT;
     
     SIGNAL done_addr_gen: std_logic := '0';
-    SIGNAL doneSp_addr_gen: std_logic := '0';
+    SIGNAL newSp_addr_gen: std_logic := '0';
     SIGNAL en_addr_gen: std_logic := '1';
     SIGNAL addra: std_logic_vector(7 DOWNTO 0) := (OTHERS => '0');
     SIGNAL addrb: std_logic_vector(7 DOWNTO 0) := (OTHERS => '0');
@@ -47,7 +47,7 @@ BEGIN
         en => en_addr_gen,
         addra => addra,
         addrb => addrb,
-        doneSp => doneSp_addr_gen,
+        newSp => newSp_addr_gen,
         done => done_addr_gen);
         
     main: PROCESS
@@ -101,7 +101,7 @@ BEGIN
                     step(rowa, colb, el);
                 END LOOP;
                 
-                ASSERT doneSp_addr_gen = '1' REPORT "doneSp is not set" SEVERITY error;
+                ASSERT newSp_addr_gen = '1' REPORT "doneSp is not set" SEVERITY error;
             END LOOP;
         END LOOP;
         

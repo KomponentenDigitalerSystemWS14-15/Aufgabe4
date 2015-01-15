@@ -24,7 +24,7 @@ ARCHITECTURE behavioral OF core IS
          en:     IN  std_logic;                       -- enable,         high active
          addra:  OUT std_logic_vector(7 DOWNTO 0);
          addrb:  OUT std_logic_vector(7 DOWNTO 0);
-         doneSp: OUT std_logic;                       -- high active, when scalar product done
+         newSp: OUT std_logic;                       -- high active, when scalar product done
          done:   OUT std_logic);                      -- high active, if all addresses have been generated
     END COMPONENT;
     
@@ -93,9 +93,9 @@ ARCHITECTURE behavioral OF core IS
     SIGNAL done_acc: std_logic := '0';
     SIGNAL done_ram: std_logic := '0';
     
-    SIGNAL doneSp_addr_gen: std_logic := '0';
-    SIGNAL restart1: std_logic := '0';
-    SIGNAL restart2: std_logic := '0';
+    SIGNAL newSp_addr_gen: std_logic := '0';
+    SIGNAL newSp_rom: std_logic := '0';
+    SIGNAL newSp_mul: std_logic := '0';
     
     SIGNAL swrst_res: std_logic := NOT RSTDEF;
     SIGNAL swrst_done: std_logic := NOT RSTDEF;
@@ -108,8 +108,11 @@ ARCHITECTURE behavioral OF core IS
     
     SIGNAL addra_tmp: std_logic_vector(7 DOWNTO 0) := (OTHERS => '0');
     SIGNAL addrb_tmp: std_logic_vector(7 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL addrres_tmp: std_logic_vector(7 DOWNTO 0) := (OTHERS => '0');
     SIGNAL addra: std_logic_vector(9 DOWNTO 0) := (OTHERS => '0');
     SIGNAL addrb: std_logic_vector(9 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL addrres: std_logic_vector(9 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL addrout: std_logic_vector(9 DOWNTO 0) := (OTHERS => '0');
     
     SIGNAL vala: std_logic_vector(15 DOWNTO 0) := (OTHERS => '0');
     SIGNAL valb: std_logic_vector(15 DOWNTO 0) := (OTHERS => '0');
@@ -122,10 +125,10 @@ BEGIN
     -- after ram is written
     swrst_done <= RSTDEF WHEN done_acc = '1' ELSE NOT RSTDEF;
     swrst_res <= swrst WHEN swrst = RSTDEF ELSE swrst_done;
-    done <= done_ram;
+    rdy <= done_ram;
     
     -- disable writing when ram is done
-    wea_ram <= NOT done_ram;
+    wea_ram <= newSp_mul;
     
     addr_gen1: addr_gen
     GENERIC MAP(RSTDEF => RSTDEF)
@@ -136,7 +139,7 @@ BEGIN
         en => en_addr_gen,
         addra => addra_tmp,
         addrb => addrb_tmp,
-        doneSp => doneSp_addr_gen,
+        newSp => newSp_addr_gen,
         done => done_addr_gen);
     
     addra <= "00" & addra_tmp;
@@ -168,18 +171,41 @@ BEGIN
              clk => clk,
              swrst => swrst_res,
              en => en_acc,
-             restart => restart2,
+             restart => newSp_mul,
              op => prod,
              sum => sum);
              
+    PROCESS(clk, rst)
+    BEGIN
+        IF rst = RSTDEF THEN
+            addrres_tmp := (OTHERS => '0');
+        ELSIF rising_edge(clk) THEN
+            IF swrst_res = RSTDEF THEN
+                -- because of overflow, maybe unnecessary
+                addrres_tmp := (OTHERS => '0');
+            ELSE
+                IF newSp_mul = '1' THEN
+                    addrres_tmp := addrres_tmp + 1;
+                END IF;
+                
+                IF start = '1' THEN
+                    running <= '1';
+                END IF;
+            END IF;
+        END IF;
+    END PROCESS;
+    
+    addrres <= "00" & addrres_tmp;
+    addrout <= "00" & sw;
+    
     rb2: ram_block
-    PORT MAP(addra => ,
-          addrb => ,
+    PORT MAP(addra => addrres,
+          addrb => addrout,
           clka => clk,
           clkb => clk,
           dina => sum,
-          douta => ,
-          doutb => ,
+          douta => OPEN,
+          doutb => dout,
           ena => '1',
           enb => '1',
           wea => wea_ram);
@@ -190,8 +216,8 @@ BEGIN
             clk => clk,
             swrst => swrst,
             en => en_ff,
-            d => doneSp_addr_gen,
-            q => restart1);
+            d => newSp_addr_gen,
+            q => newSp_rom);
             
     restartff2 : flipflop
     GENERIC MAP(RSTDEF => RSTDEF)
@@ -199,8 +225,8 @@ BEGIN
             clk => clk,
             swrst => swrst,
             en => en_ff,
-            d => restart1,
-            q => restart2);
+            d => newSp_rom,
+            q => newSp_mul);
             
             
     doneff1 : flipflop
@@ -230,7 +256,7 @@ BEGIN
             d => done_mul,
             q => done_acc);
             
-    doneff3 : flipflop
+    doneff4 : flipflop
     GENERIC MAP(RSTDEF => RSTDEF)
     PORT MAP(rst => rst,
             clk => clk,

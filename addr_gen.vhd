@@ -10,7 +10,7 @@ ENTITY addr_gen IS
         en:     IN  std_logic;                       -- enable,         high active
         addra:  OUT std_logic_vector(7 DOWNTO 0);
         addrb:  OUT std_logic_vector(7 DOWNTO 0);
-        doneSp: OUT std_logic;                       -- high active, when scalar product done
+        newSp: OUT std_logic;                       -- high active, when scalar product done
         done:   OUT std_logic);                      -- high active, if all addresses have been generated
 END addr_gen;
 
@@ -31,7 +31,7 @@ BEGIN
     BEGIN
         IF rst = RSTDEF THEN
             done <= '0';
-            doneSp <= '0';
+            newSp <= '0';
             addra_start <= (OTHERS => '0');
             addrb_start <= (OTHERS => '0');
             a_offset <= (OTHERS => '0');
@@ -39,14 +39,14 @@ BEGIN
         ELSIF rising_edge(clk) THEN
             IF swrst = RSTDEF THEN
                 done <= '0';
-                doneSp <= '0';
+                newSp <= '0';
                 addra_start <= (OTHERS => '0');
                 addrb_start <= (OTHERS => '0');
                 a_offset <= (OTHERS => '0');
                 b_offset <= (OTHERS => '0');
             ELSIF en = '1' THEN
                 done <= '0';
-                doneSp <= '0';
+                newSp <= '0';
                 a_offset_var := ('0' & a_offset) + 1;
                 a_offset <= a_offset_var(3 DOWNTO 0);
                 b_offset <= b_offset + 16;
@@ -55,7 +55,7 @@ BEGIN
                 IF a_offset_var(4) = '1' THEN
                     addrb_start_var := ('0' & addrb_start) + 1;
                     addrb_start <= addrb_start_var(3 DOWNTO 0);
-                    doneSp <= '1';
+                    newSp <= '1';
                     
                     -- finished one row of matrix A
                     IF addrb_start_var(4) = '1' THEN
