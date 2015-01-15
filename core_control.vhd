@@ -17,7 +17,8 @@ ENTITY core_control IS
         en_acc:         OUT std_logic;
         wea_ram:        OUT std_logic;
         restart_acc:    OUT std_logic;
-        rdy:            OUT std_logic;                      -- ready,          high active
+        swrst_all:      OUT std_logic;
+        rdy:            OUT std_logic);                     -- ready,          high active
 END core_control;
 
 ARCHITECTURE behavioral OF core_control IS
@@ -32,12 +33,14 @@ ARCHITECTURE behavioral OF core_control IS
     END COMPONENT;
     
     SIGNAL running: std_logic := '0';
+    SIGNAL stopping: std_logic := '0';
     
     -- enable signals
     SIGNAL en_addr_gen_pipe: std_logic := '0';
     SIGNAL en_rom_pipe: std_logic := '0';
     SIGNAL en_mul_pipe: std_logic := '0';
     SIGNAL en_acc_pipe: std_logic := '0';
+    SIGNAL wea_ram_pipe: std_logic := '0';
     
     -- newsp signals
     SIGNAL newsp_rom: std_logic := '0';
@@ -47,28 +50,54 @@ BEGIN
     
     -- enable signals
     en_addr_gen_pipe <= '0' WHEN done_addr_gen = '1'; --TODO Obacht! else?
-    en_addr_gen <= en_addr_gen_pipe;
+    --en_addr_gen <= en_addr_gen_pipe;
     en_rom <= en_rom_pipe;
     en_mul <= en_mul_pipe;
     en_acc <= en_acc_pipe;
     
     -- newsp signals
     restart_acc <= newsp_mul;
-    wea_ram <= newsp_mul;
+    wea_ram_pipe <= newsp_mul;
+    wea_ram <= wea_ram_pipe;
     
     PROCESS(rst, clk)
     BEGIN
         IF rst = RSTDEF THEN
-        
+            running <= '0';
+            stopping <= '0';
+            en_addr_gen_pipe <= '0';
+            swrst_all <= NOT RSTDEF;
+            rdy <= '0';
         ELSIF rising_edge(clk) THEN
             IF swrst = RSTDEF THEN
-            
+                running <= '0';
+                stopping <= '0';
+                en_addr_gen_pipe <= '0';
+                swrst_all <= NOT RSTDEF;
+                rdy <= '0'; 
             ELSE
+                swrst_all <= NOT RSTDEF;
                 -- S0 -> S1
-                IF start = '1' AND running = '0' THEN
-                    en_addr_gen_pipe = '1';
-                    running = '1';
-                    rdy = '0';
+                IF strt = '1' AND running = '0' THEN
+                    en_addr_gen_pipe <= '1';
+                    running <= '1';
+                    rdy <= '0';
+                END IF;
+                
+                -- S4 -> S5
+                IF done_addr_gen = '1' THEN
+                    stopping <= '1';
+                END IF;
+                
+                -- S7 -> S11
+                IF stopping = '1' AND wea_ram_pipe = '1' THEN
+                    swrst_all <= RSTDEF;
+                END IF;
+                
+                -- S11 -> S0
+                IF stopping = '1' AND en_acc_pipe = '0' THEN
+                    running <= '0';
+                    rdy <= '1';
                 END IF;
             END IF;
         END IF;
@@ -110,7 +139,7 @@ BEGIN
              d => newsp_addr_gen,
              q => newsp_rom);
              
-    newspff1: flipflop
+    newspff2: flipflop
     GENERIC MAP(RSTDEF => RSTDEF)
     PORT MAP(rst => rst,
              clk => clk,
