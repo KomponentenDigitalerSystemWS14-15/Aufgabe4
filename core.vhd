@@ -119,7 +119,7 @@ BEGIN
             ELSE
                 CASE state IS
                 WHEN S0 =>
-                    IF start = '1' THEN
+                    IF strt = '1' THEN
                         state <= S1;
                         en_store(0) <= '1';    
                         rdy <= '0';
