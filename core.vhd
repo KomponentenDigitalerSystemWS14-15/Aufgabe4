@@ -117,18 +117,21 @@ BEGIN
                 swrst_done <= NOT RSTDEF;
                 addrc <= (OTHERS => '0');
             ELSE
-                IF state = S0 AND strt = '1' THEN
-                    state <= S1;
-                    en_store(0) <= '1';    
-                    rdy <= '0';
-                ELSIF state = S1 THEN
+                CASE state IS
+                WHEN S0 =>
+                    IF start = '1' THEN
+                        state <= S1;
+                        en_store(0) <= '1';    
+                        rdy <= '0';
+                    END IF;
+                WHEN S1 =>
                     -- shift enable signals
                     en_store <= en_store(en_store'high-1 DOWNTO 0) & '1';
                     IF en_store(en_store'high-1) = '1' THEN
                         -- we enabled last component in this clock
                         state <= S2;
                     END IF;
-                ELSIF state = S2 THEN
+                WHEN S2 =>
                     en_store(0) <= '1';
                      -- shift next signals
                     next_store <= next_store(next_store'high-1 DOWNTO 0) & '0';
@@ -157,11 +160,11 @@ BEGIN
                             swrst_done <= RSTDEF;
                         END IF;
                     END IF;
-                ELSIF state = S3 THEN
+                WHEN S3 =>
                     state <= S0;
                     rdy <= '1';
                     swrst_done <= NOT RSTDEF;
-                END IF;
+                END CASE;
             END IF;
         END IF;
     END PROCESS;
