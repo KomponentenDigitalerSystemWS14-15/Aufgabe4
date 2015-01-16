@@ -92,9 +92,12 @@ ARCHITECTURE behavioral OF core IS
     
     SIGNAL swrst_done: std_logic := NOT RSTDEF;
     SIGNAL swrst_res: std_logic;
+    SIGNAL swrst_acc_tmp: std_logic := NOT RSTDEF;
+    SIGNAL swrst_acc: std_logic;
 BEGIN
     
     swrst_res <= swrst WHEN swrst = RSTDEF ELSE swrst_done;
+    swrst_acc <= swrst_res WHEN swrst_res = RSTDEF ELSE swrst_acc_tmp;
     sum_save <= std_logic_vector(resize(signed(sum), 16));
     addrd <= "00" & sw;
     
@@ -121,17 +124,25 @@ BEGIN
                 ELSIF state = S1 THEN
                     -- shift enable signals
                     en_store <= en_store(en_store'high-1 DOWNTO 0) & '1';
-                    IF en_store(1) = '1' THEN
+                    IF en_store(en_store'high-1) = '1' THEN
+                        -- we enabled last component in this clock
                         state <= S2;
                     END IF;
                 ELSIF state = S2 THEN
+                    en_store(0) <= '1';
+                     -- shift next signals
+                    next_store <= next_store(next_store'high-1 DOWNTO 0) & '0';
                     IF addra(3 DOWNTO 0) = "1111" THEN
+                        -- finished one dot product
                         next_store(0) <= '1';
+                        -- interleave 1 clock for accumulator reset
+                        en_store(0) <= '0';
                     END IF;
                     
-                    -- shift next signals
-                    IF next_store(0) = '1' THEN
-                        next_store <= next_store(next_store'high-1 DOWNTO 0) & '1';
+                    swrst_acc_tmp <= NOT RSTDEF;
+                    IF next_store(1) = '1' THEN
+                        -- reset accumulator
+                        swrst_acc_tmp <= RSTDEF;
                     END IF;
                     
                     IF next_store(2) = '1' THEN
@@ -195,7 +206,7 @@ BEGIN
                 RSTDEF => RSTDEF)
     PORT MAP(rst => rst,
              clk => clk,
-             swrst => swrst_res,
+             swrst => swrst_acc,
              en => en_store(2),
              op => prod,
              sum => sum);
