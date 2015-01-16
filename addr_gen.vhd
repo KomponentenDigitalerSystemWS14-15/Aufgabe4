@@ -9,21 +9,21 @@ ENTITY addr_gen IS
         swrst:  IN  std_logic;                       -- software reset, RSTDEF active
         en:     IN  std_logic;                       -- enable,         high active
         addra:  OUT std_logic_vector(9 DOWNTO 0);
-        addrb:  OUT std_logic_vector(9 DOWNTO 0);
+        addrb:  OUT std_logic_vector(9 DOWNTO 0));
 END addr_gen;
 
 ARCHITECTURE behavioral OF addr_gen IS
-    SIGNAL rowa: std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL cola: std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL rowb: std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL colb: std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL rowa: unsigned(3 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL cola: unsigned(3 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL rowb: unsigned(3 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL colb: unsigned(3 DOWNTO 0) := (OTHERS => '0');
 BEGIN
-    addra <= "00" & rowa & cola;
-    addrb <= "01" & rowb & colb;
+    addra <= std_logic_vector("00" & rowa & cola);
+    addrb <= std_logic_vector("01" & rowb & colb);
 
     PROCESS(rst, clk)
-        VARIABLE rowb_var: std_logic_vector(4 DOWNTO 0) := (OTHERS => '0');
-        VARIABLE colb_var: std_logic_vector(4 DOWNTO 0) := (OTHERS => '0');
+        VARIABLE rowb_var: unsigned(4 DOWNTO 0) := (OTHERS => '0');
+        VARIABLE colb_var: unsigned(4 DOWNTO 0) := (OTHERS => '0');
     BEGIN
         IF rst = RSTDEF THEN
             rowa <= (OTHERS => '0');

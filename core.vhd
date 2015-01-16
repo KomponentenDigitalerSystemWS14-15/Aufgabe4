@@ -73,41 +73,55 @@ ARCHITECTURE behavioral OF core IS
     END COMPONENT;
     
     TYPE TState IS (S0, S1, S2, S3);
+    CONSTANT ACC_LEN: natural := 44;
+    CONSTANT ACC_IN_LEN: natural := 36;
     
     SIGNAL addra: std_logic_vector(9 DOWNTO 0);
     SIGNAL addrb: std_logic_vector(9 DOWNTO 0);
-    SIGNAL addrc: std_logic_vector(9 DOWNTO 0);
-    SIGNAL en_store: std_logic_vector(3 DOWNTO 0) := (OTHERS => '0');
-    SIGNAL next_store: std_logic_vector(4 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL addrc: std_logic_vector(9 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL addrd: std_logic_vector(9 DOWNTO 0);
+    SIGNAL en_store: std_logic_vector(2 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL next_store: std_logic_vector(2 DOWNTO 0) := (OTHERS => '0');
     SIGNAL state: TState := S0;
     
     SIGNAL vala: std_logic_vector(15 DOWNTO 0) := (OTHERS => '0');
     SIGNAL valb: std_logic_vector(15 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL prod: std_logic_vector(35 DOWNTO 0);
+    SIGNAL sum: std_logic_vector(43 DOWNTO 0);
+    SIGNAL sum_save: std_logic_vector(15 DOWNTO 0);
     
     SIGNAL swrst_done: std_logic := NOT RSTDEF;
     SIGNAL swrst_res: std_logic;
-    
-    SIGNAL wea_ram: std_logic := '0';
 BEGIN
     
     swrst_res <= swrst WHEN swrst = RSTDEF ELSE swrst_done;
+    sum_save <= std_logic_vector(resize(signed(sum), 16));
+    addrd <= "00" & sw;
     
     PROCESS(rst, clk)
     BEGIN
         IF rst = RSTDEF THEN
-        
+            en_store <= (OTHERS => '0');
+            next_store <= (OTHERS => '0');
+            state <= S0;
+            swrst_done <= NOT RSTDEF;
+            addrc <= (OTHERS => '0');
         ELSIF rising_edge(clk) THEN
             IF swrst = RSTDEF THEN
-            
+                en_store <= (OTHERS => '0');
+                next_store <= (OTHERS => '0');
+                state <= S0;
+                swrst_done <= NOT RSTDEF;
+                addrc <= (OTHERS => '0');
             ELSE
                 IF state = S0 AND strt = '1' THEN
                     state <= S1;
-                    en_store(0) <= '1';
-                    wea_ram <= '0';        
+                    en_store(0) <= '1';    
+                    rdy <= '0';
                 ELSIF state = S1 THEN
                     -- shift enable signals
                     en_store <= en_store(en_store'high-1 DOWNTO 0) & '1';
-                    IF en_store(2) = '1' THEN
+                    IF en_store(1) = '1' THEN
                         state <= S2;
                     END IF;
                 ELSIF state = S2 THEN
@@ -120,9 +134,9 @@ BEGIN
                         next_store <= next_store(next_store'high-1 DOWNTO 0) & '1';
                     END IF;
                     
-                    IF next_store(4) = '1' THEN
+                    IF next_store(2) = '1' THEN
                         next_store <= (OTHERS => '0');
-                        addrc <= addrc + 1;
+                        addrc <= std_logic_vector(unsigned(addrc) + 1);
                     END IF;
                     
                     -- finished all 
@@ -133,28 +147,29 @@ BEGIN
                 ELSIF state = S3 THEN
                     -- shift enable signals
                     en_store <= en_store(en_store'high-1 DOWNTO 0) & '0';
-                    IF en_stor(2) = '0' THEN
+                    IF en_store(2) = '0' THEN
                         swrst_done <= RSTDEF;
                     END IF;
                     
                     IF swrst_done = RSTDEF THEN
-                        state = S0;
-                        rdy = '1';
-                        swrst_done = NOT RSTDEF;
+                        state <= S0;
+                        rdy <= '1';
+                        swrst_done <= NOT RSTDEF;
                     END IF;
                 END IF;
             END IF;
         END IF;
     END PROCESS;
 
+    -- addrgen and rom must be enabled in same clock
     addr1: addr_gen
-    GENERIC MAP(RSTDEF => RSTDEF);
-    PORT(rst => rst,
-         clk => clk,
-         swrst => swrst_res,
-         en => en_store(0),
-         addra => addra,
-         addrb => addrb);
+    GENERIC MAP(RSTDEF => RSTDEF)
+    PORT MAP(rst => rst,
+             clk => clk,
+             swrst => swrst_res,
+             en => en_store(0),
+             addra => addra,
+             addrb => addrb);
     
     rb1: rom_block
     PORT MAP(addra => addra,
@@ -163,12 +178,12 @@ BEGIN
              clkb => clk,
              douta => vala,
              doutb => valb,
-             ena => en_store(1),
-             enb => en_store(1));
+             ena => en_store(0),
+             enb => en_store(0));
              
     mul1: multiplier_16x16
     PORT MAP(clk => clk,
-             clken => en_store(2),
+             clken => en_store(1),
              swrst => swrst_res,
              op1 => vala,
              op2 => valb,
@@ -181,7 +196,7 @@ BEGIN
     PORT MAP(rst => rst,
              clk => clk,
              swrst => swrst_res,
-             en => en_store(3),
+             en => en_store(2),
              op => prod,
              sum => sum);
     
@@ -190,11 +205,11 @@ BEGIN
              addrb => "0000000000",
              clka => clk,
              clkb => clk,
-             dina => sum,
+             dina => sum_save,
              douta => OPEN,
              doutb => dout,
              ena => '1',
              enb => '1',
-             wea => wea_ram);
+             wea => next_store(2));
              
 END behavioral;
