@@ -204,13 +204,6 @@ BEGIN
              en => en_store(2),
              op => prod,
              sum => sum);
-             
---    acc1: Accumulator_xilinx
---    PORT MAP(b => prod,
---             clk => clk,
---             ce => en_acc,
---             sclr => swrst_acc,
---             q => sum);
     
     rb2: ram_block
     PORT MAP(addra => addrc,
