@@ -148,25 +148,19 @@ BEGIN
                     IF next_store(2) = '1' THEN
                         next_store <= (OTHERS => '0');
                         addrc <= std_logic_vector(unsigned(addrc) + 1);
-                    END IF;
-                    
-                    -- finished all 
-                    IF addra = "0011111111" THEN
-                        state <= S3;
-                        en_store(0) <= '1';
+                        
+                        -- finished all 
+                        IF addrc = "0011111111" THEN
+                            state <= S3;
+                            en_store <= (OTHERS => '0');
+                            addrc <= (OTHERS => '0');
+                            swrst_done <= RSTDEF;
+                        END IF;
                     END IF;
                 ELSIF state = S3 THEN
-                    -- shift enable signals
-                    en_store <= en_store(en_store'high-1 DOWNTO 0) & '0';
-                    IF en_store(2) = '0' THEN
-                        swrst_done <= RSTDEF;
-                    END IF;
-                    
-                    IF swrst_done = RSTDEF THEN
-                        state <= S0;
-                        rdy <= '1';
-                        swrst_done <= NOT RSTDEF;
-                    END IF;
+                    state <= S0;
+                    rdy <= '1';
+                    swrst_done <= NOT RSTDEF;
                 END IF;
             END IF;
         END IF;
@@ -213,7 +207,7 @@ BEGIN
     
     rb2: ram_block
     PORT MAP(addra => addrc,
-             addrb => "0000000000",
+             addrb => addrd,
              clka => clk,
              clkb => clk,
              dina => sum_save,

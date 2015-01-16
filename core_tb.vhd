@@ -111,7 +111,7 @@ BEGIN
       FOR i IN 0 TO N*N-1 LOOP
          sw <= conv_std_logic_vector(i, 8);
          clock(2);
-         ASSERT conv_integer(signed(dout))=tab(i) REPORT "wrong value" SEVERITY error;
+         ASSERT conv_integer(signed(dout))=tab(i) REPORT "wrong value at" SEVERITY error;
       END LOOP;
 
       clock(1);
