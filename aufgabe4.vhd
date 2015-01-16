@@ -86,7 +86,6 @@ BEGIN
              dp    => dp,
              seg   => seg);
              
-             
     u3: core
     GENERIC MAP(RSTDEF => RSTDEF)
     PORT MAP(rst => rst,
@@ -96,5 +95,4 @@ BEGIN
          rdy => LD0,
          sw => sw,
          dout => res);
-   
 END;
