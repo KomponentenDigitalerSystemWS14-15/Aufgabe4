@@ -114,17 +114,22 @@ ARCHITECTURE behavioral OF core IS
     -- TODO: Acc auf 16 Bit?
     -- TODO: Unary ?
     -- TODO: addierer von schoppa?
-    
 BEGIN
 
     addrd <= "00" & sw;
     sum_save <= std_logic_vector(resize(signed(sum), 16));
+    
+    -- TESTING
+    --en_mul <= en_rom;
+    --en_acc <= en_mul;
     
     PROCESS(rst, clk)
     BEGIN
         IF rst = RSTDEF THEN
             status <= STOP;
             running <= '0';
+            rdy <= '0';
+            
             en_rom <= '0';
             en_mul <= '0';
             en_acc <= '0';
@@ -135,6 +140,8 @@ BEGIN
             IF swrst = RSTDEF THEN
                 status <= STOP;
                 running <= '0';
+                rdy <= '0';
+                
                 en_rom <= '0';
                 en_mul <= '0';
                 en_acc <= '0';
@@ -154,68 +161,95 @@ BEGIN
                     status <= S0;
                 END IF;
                 
-                IF status = S0 THEN
-                    en_mul <= '1';
-                    
-                    status <= S1;
-                END IF;
-                
-                IF status = S1 THEN
-                    en_acc <= '1';
-                    
-                    status <= S2;
-                END IF;
+               IF status = S0 THEN
+                   en_mul <= '1';
+                   
+                   status <= S1;
+               END IF;
+               
+               IF status = S1 THEN
+                   en_acc <= '1';
+                   
+                   status <= S2;
+               END IF;
                 
                 -- Full pipe
+                --IF status = S0 AND en_acc = '1' THEN --
                 IF status = S2 THEN         
                     -- Reset accumulator + write to RAM
                     -- signal at acc in is new sum, signal at acc out gets written
-                    IF addra(3 DOWNTO 0) = "0001" THEN -- ACHTUNG HIER
-                        newSum_acc <= '1';
+                    IF addra(3 DOWNTO 0) = "0001" THEN
                         en_ram <= '1';
                         addrc <= std_logic_vector(unsigned(addrc) + 1);
+                    
+                        IF addrc(7 DOWNTO 0) = "11111110" THEN
+                            -- Exit (next clock writes to ram)
+                            swrst_addr_gen <= '1';
+                            swrst_acc <= '1';
+                            
+                            en_addr_gen <= '0';
+                            en_rom <= '0';
+                            en_mul <= '0';
+                            en_acc <= '0';
+                            
+                            status <= S3;
+                        ELSE
+                            newSum_acc <= '1'; -- Not with the last one
+                        END IF;
                     ELSE
                         newSum_acc <= '0';
                         en_ram <= '0';
                     END IF;
                     
                     -- Finished
-                    IF addra(7 DOWNTO 0) = "11111111" AND addrb(7 DOWNTO 0) = "11111111" THEN
-                         swrst_addr_gen <= '1';
-                         en_addr_gen <= '0';
-                         en_rom <= '0';
-                         
-                         addrc <= std_logic_vector(unsigned(addrc) + 1);
-                         
-                         status <= S3;
-                    END IF;
+               --  IF addra(7 DOWNTO 0) = "11111111" AND addrb(7 DOWNTO 0) = "11111111" THEN
+               --       swrst_addr_gen <= '1';
+               --       en_addr_gen <= '0';
+               --       en_rom <= '0';
+               --       
+               --       addrc <= std_logic_vector(unsigned(addrc) + 1);
+               --       
+               --       status <= S3;
+               --  END IF;
                 END IF;
                 
-                -- End
                 IF status = S3 THEN
                     swrst_addr_gen <= '0';
-                    en_mul <= '0';
-                    
-                    status <= S4;
-                END IF;
-                
-                IF status = S4 THEN
-                    swrst_acc <= '1';
-                    en_acc <= '0';
-                    en_ram <= '1';
-                    
-                    status <= S5;
-                END IF;
-                
-                IF status = S5 THEN
                     swrst_acc <= '0';
+                    
                     en_ram <= '0';
-                
+                    
                     running <= '0';
                     rdy <= '1';
                     
                     status <= STOP;
                 END IF;
+                
+                -- End
+           -- IF status = S3 THEN
+           --     swrst_addr_gen <= '0';
+           --     en_mul <= '0';
+           --     
+           --     status <= S4;
+           -- END IF;
+           -- 
+           -- IF status = S4 THEN
+           --     swrst_acc <= '1';
+           --     en_acc <= '0';
+           --     en_ram <= '1';
+           --     
+           --     status <= S5;
+           -- END IF;
+           -- 
+           -- IF status = S5 THEN
+           --     swrst_acc <= '0';
+           --     en_ram <= '0';
+           -- 
+           --     running <= '0';
+           --     rdy <= '1';
+           --     
+           --     status <= STOP;
+           -- END IF;
             END IF;
         END IF;
     END PROCESS;

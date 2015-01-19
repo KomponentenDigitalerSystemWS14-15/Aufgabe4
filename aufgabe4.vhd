@@ -57,8 +57,8 @@ ARCHITECTURE behavioral OF aufgabe4 IS
    CONSTANT RSTDEF: std_logic := '1';
    CONSTANT swrst: std_logic := NOT RSTDEF;
 
-   SIGNAL strt:   std_logic;
-   SIGNAL res:    std_logic_vector(15 DOWNTO 0);
+   SIGNAL strt: std_logic;
+   SIGNAL res: std_logic_vector(15 DOWNTO 0);
    
 BEGIN
 
@@ -85,14 +85,14 @@ BEGIN
              an    => an,
              dp    => dp,
              seg   => seg);
-             
+    
     u3: core
     GENERIC MAP(RSTDEF => RSTDEF)
     PORT MAP(rst => rst,
-         clk => clk,
-         swrst => swrst,
-         strt => strt,
-         rdy => LD0,
-         sw => sw,
-         dout => res);
+             clk => clk,
+             swrst => swrst,
+             strt => strt,
+             rdy => LD0,
+             sw => sw,
+             dout => res);
 END;
