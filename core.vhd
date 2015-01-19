@@ -56,7 +56,7 @@ ARCHITECTURE behavioral OF core IS
          swrst:   IN std_logic;                           -- software reset, RSTDEF active
          en:      IN std_logic;                           -- enable, high active
          op:      IN std_logic_vector(N_in-1 DOWNTO 0);   -- operand
-         sum:     OUT std_logic_vector(N-1 DOWNTO 0);    -- result
+         sum:     OUT std_logic_vector(N-1 DOWNTO 0);     -- result
          newSum:  IN std_logic);
     END COMPONENT;
     
@@ -73,9 +73,9 @@ ARCHITECTURE behavioral OF core IS
           wea:   IN  std_logic);
     END COMPONENT;
     
-    TYPE TState IS (STOP, S0, S1, S2, S3);
-    CONSTANT ACC_LEN: natural := 16;--44; TODO
-    CONSTANT ACC_IN_LEN: natural := 16;--36; TODO
+    TYPE TState IS (STOP, S0, S1);
+    CONSTANT ACC_LEN: natural := 16;
+    CONSTANT ACC_IN_LEN: natural := 16;
     
     SIGNAL status: TState := STOP;
     
@@ -108,18 +108,11 @@ ARCHITECTURE behavioral OF core IS
     SIGNAL newSum_acc: std_logic := '0';
     SIGNAL swrst_acc_gen: std_logic := '0';
     
-    -- TODO: prio swrst signal
-    -- TODO: Unary ?
-    -- TODO: addierer von schoppa?
 BEGIN
 
     addrd <= "00" & sw;
     prod <= prod_original(15 DOWNTO 0);
     addrc <= "00" & addrc_cnt;
-    
-    -- TESTING
-    --en_mul <= en_rom;
-    --en_acc <= en_mul;
     
     PROCESS(rst, clk)
     BEGIN
@@ -146,62 +139,52 @@ BEGIN
                 addrc_cnt <= (OTHERS => '1');
             ELSE
                 -- Start
-                IF strt = '1' AND status = STOP THEN                   
-                    en_rom <= '1';
-                    en_addr_gen <= '1';
-                    
-                    rdy <= '0';
-                    
-                    status <= S0;
-                END IF;
-                
-               IF status = S0 THEN
-                   en_mul <= '1';
-                   
-                   status <= S1;
-               END IF;
-               
-               IF status = S1 THEN
-                   en_acc <= '1';
-                   
-                   status <= S2;
-               END IF;
-                
-                -- Full pipe
-                --IF status = S0 AND en_acc = '1' THEN --
-                IF status = S2 THEN         
-                    -- Reset accumulator + write to RAM
-                    -- signal at acc in is new sum, signal at acc out gets written
-                    IF addra(3 DOWNTO 0) = "0001" THEN
-                        en_ram <= '1';
-                        addrc_cnt <= std_logic_vector(unsigned(addrc_cnt) + 1);
-                    
-                        IF addrc_cnt = "11111110" THEN
-                            -- Exit (next clock writes to ram)
-                            swrst_acc_gen <= RSTDEF;
-                            
-                            en_addr_gen <= '0';
-                            en_rom <= '0';
-                            en_mul <= '0';
-                            en_acc <= '0';
-                            
-                            status <= S3;
-                        ELSE
-                            newSum_acc <= '1'; -- Not with the last one
-                        END IF;
-                    ELSE
-                        newSum_acc <= '0';
-                        en_ram <= '0';
+                CASE status IS
+                WHEN STOP =>            
+                    IF strt = '1' THEN
+                        en_rom <= '1';
+                        en_addr_gen <= '1';
+                        
+                        rdy <= '0';
+                        
+                        status <= S0;
                     END IF;
-                END IF;
-                
-                IF status = S3 THEN
+                WHEN S0 =>
+                    en_mul <= '1';
+                    en_acc <= en_mul;
+
+                    IF en_acc = '1' THEN
+                        -- Reset accumulator + write to RAM
+                        -- signal at acc in is new sum, signal at acc out gets written
+                        IF addra(3 DOWNTO 0) = "0001" THEN
+                            en_ram <= '1';
+                            addrc_cnt <= std_logic_vector(unsigned(addrc_cnt) + 1);
+                        
+                            IF addrc_cnt = "11111110" THEN
+                                -- Exit (next clock writes to ram)
+                                swrst_acc_gen <= RSTDEF;
+                                
+                                en_addr_gen <= '0';
+                                en_rom <= '0';
+                                en_mul <= '0';
+                                en_acc <= '0';
+                                
+                                status <= S1;
+                            ELSE
+                                newSum_acc <= '1'; -- Not with the last one
+                            END IF;
+                        ELSE
+                            newSum_acc <= '0';
+                            en_ram <= '0';
+                        END IF;
+                    END IF;
+                WHEN S1 =>
                     swrst_acc_gen <= NOT RSTDEF;
                     en_ram <= '0';
                     
                     rdy <= '1';
                     status <= STOP;
-                END IF;
+                END CASE;
             END IF;
         END IF;
     END PROCESS;
