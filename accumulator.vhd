@@ -20,7 +20,7 @@ ARCHITECTURE behavioral OF accumulator IS
 BEGIN
 
     sum <= std_logic_vector(tmp_sum);
-        
+    
     PROCESS(rst, clk)
     BEGIN
         IF rst = RSTDEF THEN

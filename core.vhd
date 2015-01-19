@@ -73,9 +73,9 @@ ARCHITECTURE behavioral OF core IS
           wea:   IN  std_logic);
     END COMPONENT;
     
-    TYPE TState IS (STOP, S0, S1, S2, S3, S4, S5);
-    CONSTANT ACC_LEN: natural := 44;
-    CONSTANT ACC_IN_LEN: natural := 36;
+    TYPE TState IS (STOP, S0, S1, S2, S3);
+    CONSTANT ACC_LEN: natural := 16;--44; TODO
+    CONSTANT ACC_IN_LEN: natural := 16;--36; TODO
     
     SIGNAL status: TState := STOP;
     
@@ -88,11 +88,12 @@ ARCHITECTURE behavioral OF core IS
     SIGNAL valb: std_logic_vector(15 DOWNTO 0) := (OTHERS => '0');
     
     -- ACC
-    SIGNAL prod: std_logic_vector(35 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL prod_original: std_logic_vector(35 DOWNTO 0) := (OTHERS => '0');
+    SIGNAL prod: std_logic_vector(15 DOWNTO 0) := (OTHERS => '0');
     
     -- RAM
-    SIGNAL sum: std_logic_vector(43 DOWNTO 0);
-    SIGNAL sum_save: std_logic_vector(15 DOWNTO 0);
+    SIGNAL sum: std_logic_vector(15 DOWNTO 0);
+    SIGNAL addrc_cnt: std_logic_vector(7 DOWNTO 0) := (OTHERS => '1');
     SIGNAL addrc: std_logic_vector(9 DOWNTO 0) := (OTHERS => '1');
     SIGNAL addrd: std_logic_vector(9 DOWNTO 0) := (OTHERS => '0');
     
@@ -105,19 +106,16 @@ ARCHITECTURE behavioral OF core IS
     
     -- Resets
     SIGNAL newSum_acc: std_logic := '0';
-    SIGNAL swrst_acc: std_logic := '0';
-    SIGNAL swrst_addr_gen: std_logic := '0';
-      
-    SIGNAL running: std_logic := '0';
+    SIGNAL swrst_acc_gen: std_logic := '0';
     
     -- TODO: prio swrst signal
-    -- TODO: Acc auf 16 Bit?
     -- TODO: Unary ?
     -- TODO: addierer von schoppa?
 BEGIN
 
     addrd <= "00" & sw;
-    sum_save <= std_logic_vector(resize(signed(sum), 16));
+    prod <= prod_original(15 DOWNTO 0);
+    addrc <= "00" & addrc_cnt;
     
     -- TESTING
     --en_mul <= en_rom;
@@ -127,7 +125,6 @@ BEGIN
     BEGIN
         IF rst = RSTDEF THEN
             status <= STOP;
-            running <= '0';
             rdy <= '0';
             
             en_rom <= '0';
@@ -135,11 +132,10 @@ BEGIN
             en_acc <= '0';
             en_ram <= '0';
             en_addr_gen <= '0';
-            addrc <= (OTHERS => '1');
+            addrc_cnt <= (OTHERS => '1');
         ELSIF rising_edge(clk) THEN
             IF swrst = RSTDEF THEN
                 status <= STOP;
-                running <= '0';
                 rdy <= '0';
                 
                 en_rom <= '0';
@@ -147,12 +143,10 @@ BEGIN
                 en_acc <= '0';
                 en_ram <= '0';
                 en_addr_gen <= '0';
-                addrc <= (OTHERS => '1');
+                addrc_cnt <= (OTHERS => '1');
             ELSE
                 -- Start
-                IF strt = '1' AND running = '0' THEN
-                    running <= '1';
-                    
+                IF strt = '1' AND status = STOP THEN                   
                     en_rom <= '1';
                     en_addr_gen <= '1';
                     
@@ -180,12 +174,11 @@ BEGIN
                     -- signal at acc in is new sum, signal at acc out gets written
                     IF addra(3 DOWNTO 0) = "0001" THEN
                         en_ram <= '1';
-                        addrc <= std_logic_vector(unsigned(addrc) + 1);
+                        addrc_cnt <= std_logic_vector(unsigned(addrc_cnt) + 1);
                     
-                        IF addrc(7 DOWNTO 0) = "11111110" THEN
+                        IF addrc_cnt = "11111110" THEN
                             -- Exit (next clock writes to ram)
-                            swrst_addr_gen <= '1';
-                            swrst_acc <= '1';
+                            swrst_acc_gen <= RSTDEF;
                             
                             en_addr_gen <= '0';
                             en_rom <= '0';
@@ -200,56 +193,15 @@ BEGIN
                         newSum_acc <= '0';
                         en_ram <= '0';
                     END IF;
-                    
-                    -- Finished
-               --  IF addra(7 DOWNTO 0) = "11111111" AND addrb(7 DOWNTO 0) = "11111111" THEN
-               --       swrst_addr_gen <= '1';
-               --       en_addr_gen <= '0';
-               --       en_rom <= '0';
-               --       
-               --       addrc <= std_logic_vector(unsigned(addrc) + 1);
-               --       
-               --       status <= S3;
-               --  END IF;
                 END IF;
                 
                 IF status = S3 THEN
-                    swrst_addr_gen <= '0';
-                    swrst_acc <= '0';
-                    
+                    swrst_acc_gen <= NOT RSTDEF;
                     en_ram <= '0';
                     
-                    running <= '0';
                     rdy <= '1';
-                    
                     status <= STOP;
                 END IF;
-                
-                -- End
-           -- IF status = S3 THEN
-           --     swrst_addr_gen <= '0';
-           --     en_mul <= '0';
-           --     
-           --     status <= S4;
-           -- END IF;
-           -- 
-           -- IF status = S4 THEN
-           --     swrst_acc <= '1';
-           --     en_acc <= '0';
-           --     en_ram <= '1';
-           --     
-           --     status <= S5;
-           -- END IF;
-           -- 
-           -- IF status = S5 THEN
-           --     swrst_acc <= '0';
-           --     en_ram <= '0';
-           -- 
-           --     running <= '0';
-           --     rdy <= '1';
-           --     
-           --     status <= STOP;
-           -- END IF;
             END IF;
         END IF;
     END PROCESS;
@@ -258,7 +210,7 @@ BEGIN
     GENERIC MAP(RSTDEF => RSTDEF)
     PORT MAP(rst => rst,
              clk => clk,
-             swrst => swrst_addr_gen,
+             swrst => swrst_acc_gen,
              en => en_addr_gen,
              addra => addra,
              addrb => addrb);
@@ -279,7 +231,7 @@ BEGIN
              swrst => swrst,
              op1 => vala,
              op2 => valb,
-             prod => prod);
+             prod => prod_original);
              
     acc1: accumulator
     GENERIC MAP(N => ACC_LEN,
@@ -287,7 +239,7 @@ BEGIN
                 RSTDEF => RSTDEF)
     PORT MAP(rst => rst,
              clk => clk,
-             swrst => swrst_acc,
+             swrst => swrst_acc_gen,
              en => en_acc,
              op => prod,
              sum => sum,
@@ -298,7 +250,7 @@ BEGIN
              addrb => addrd,
              clka => clk,
              clkb => clk,
-             dina => sum_save,
+             dina => sum,
              douta => OPEN,
              doutb => dout,
              ena => '1',
